@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ISO Centro - DB Explorer</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --sidebar-bg: #0b1120;
+            --card-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --primary: #3b82f6;
+            --accent-yellow: #eab308;
+            --accent-green: #10b981;
+            --accent-orange: #f59e0b;
+            --accent-purple: #a855f7;
+            --accent-red: #ef4444;
+            --border: #334155;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Sidebar info */
+        #sidebar {
+            width: 400px;
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--border);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            z-index: 10;
+            overflow-y: auto;
+            box-shadow: 10px 0 30px rgba(0,0,0,0.5);
+        }
+
+        /* Logo Branding Section - Compact Horizontal */
+        .brand-section {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 12px 15px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+
+        .brand-logo-container {
+            width: 120px;
+            height: 120px;
+            min-width: 60px;
+            border-radius: 8px;
+            overflow: hidden;
+            background: transparent;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        .brand-logo-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            padding: 4px;
+        }
+
+        .brand-text-content {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            text-align: left;
+        }
+
+        .brand-title {
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: #fff;
+            margin: 0;
+            line-height: 1.1;
+            letter-spacing: -0.5px;
+        }
+
+        .brand-subtitle {
+            font-size: 0.7rem;
+            color: var(--primary);
+            text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: 1px;
+            margin-top: 2px;
+        }
+
+        /* Canvas Area */
+        #canvas {
+            flex-grow: 1;
+            position: relative;
+            overflow: auto;
+            padding: 60px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 50px;
+            align-content: start;
+            background-image: radial-gradient(var(--border) 1px, transparent 1px);
+            background-size: 30px 30px;
+            scroll-behavior: smooth;
+        }
+
+        /* Table Styles */
+        .table-node {
+            background: var(--card-bg);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            width: 320px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: default;
+            position: relative;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3);
+            height: fit-content;
+        }
+
+        .table-node:hover {
+            border-color: rgba(59, 130, 246, 0.5);
+            transform: translateY(-2px);
+        }
+
+        .table-node.active {
+            border-color: white;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.4);
+            z-index: 5;
+        }
+
+        .table-node.dimmed {
+            opacity: 0.25;
+            filter: grayscale(0.9);
+        }
+
+        .table-header {
+            padding: 12px 15px;
+            background: rgba(255,255,255,0.05);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 700;
+            border-radius: 10px 10px 0 0;
+            cursor: pointer;
+        }
+
+        .field {
+            padding: 8px 15px;
+            font-size: 0.8rem;
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(255,255,255,0.02);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .field:hover {
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .pk { color: var(--accent-yellow); font-weight: bold; display: flex; align-items: center; gap: 4px; }
+        .fk { color: var(--primary); font-weight: bold; display: flex; align-items: center; gap: 4px; }
+        .type { color: var(--text-dim); font-family: 'Fira Code', monospace; font-size: 0.7rem; pointer-events: none; }
+
+        /* Color bars */
+        .bar-usuarios { border-top: 4px solid var(--accent-yellow); }
+        .bar-roles { border-top: 4px solid var(--primary); }
+        .bar-documentos { border-top: 4px solid var(--accent-green); }
+        .bar-historial { border-top: 4px solid var(--accent-orange); }
+        .bar-controles { border-top: 4px solid var(--accent-purple); }
+        .bar-relacion { border-top: 4px solid var(--accent-red); }
+
+        /* Detail Panel */
+        #detail-content {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .rel-link {
+            display: block;
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--primary);
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            margin-bottom: 10px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .rel-link:hover {
+            background: var(--primary);
+            color: white;
+            transform: translateX(5px);
+        }
+
+        .field-info-box {
+            background: #1e293b;
+            border: 1px solid var(--primary);
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-size: 0.85rem;
+            border-left-width: 4px;
+        }
+
+        .empty-state {
+            text-align: center;
+            margin-top: 10px;
+            color: var(--text-dim);
+            padding: 20px;
+            border: 2px dashed var(--border);
+            border-radius: 12px;
+        }
+
+        hr { border: 0; border-top: 1px solid var(--border); margin: 15px 0; }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <!-- Brand Section Compacta Horizontal -->
+        <div class="brand-section">
+            <div class="brand-logo-container">
+                <img src="https://i.imgur.com/5S7ELks.png" alt="ISO Centro Logo" onerror="this.src='https://via.placeholder.com/60?text=ISO'">
+            </div>
+            <div class="brand-text-content">
+                <h1 class="brand-title">ISO Centro</h1>
+                <span class="brand-subtitle">DB Explorer</span>
+            </div>
+        </div>
+
+        <hr>
+
+        <div id="empty-info" class="empty-state">
+            <i data-lucide="database" size="24" style="margin-bottom:8px; opacity:0.5;"></i>
+            <p style="font-size: 0.8rem; margin: 0;">Selecciona una tabla para explorar su estructura.</p>
+        </div>
+
+        <div id="detail-content">
+            <h2 id="det-title" style="margin: 0; font-size: 1.4rem;">Título</h2>
+            <div id="det-tag" style="display:inline-block; margin-top:4px; font-size:0.6rem; font-weight:bold; text-transform:uppercase; padding:2px 8px; border-radius:4px;"></div>
+            
+            <div id="field-detail" class="field-info-box" style="display:none;">
+                <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+                    <i data-lucide="info" size="14" style="color:var(--primary)"></i>
+                    <strong id="field-name" style="color: var(--primary); font-size: 0.75rem;"></strong>
+                </div>
+                <p id="field-desc" style="margin: 0; color: var(--text-main); line-height: 1.4; font-size: 0.8rem;"></p>
+            </div>
+
+            <p id="det-desc" style="color: var(--text-dim); font-size: 0.85rem; margin-top: 12px; line-height: 1.4;"></p>
+            
+            <hr>
+            
+            <h3 style="font-size: 0.85rem; margin-bottom: 10px; display:flex; align-items:center; gap:8px;">
+                <i data-lucide="share-2" size="14"></i> Relaciones
+            </h3>
+            <div id="det-rels"></div>
+        </div>
+    </div>
+
+    <div id="canvas">
+        <!-- Usuarios -->
+        <div class="table-node bar-usuarios" data-table="usuarios" data-rels="roles,documentos,historial_versiones">
+            <div class="table-header"><i data-lucide="user"></i> usuarios</div>
+            <div class="field" data-field="id_usuario"><span class="pk">id_usuario</span><span class="type">int4</span></div>
+            <div class="field" data-field="nombre_completo"><span class="plain">nombre_completo</span><span class="type">varchar</span></div>
+            <div class="field" data-field="email"><span class="plain">email</span><span class="type">varchar</span></div>
+            <div class="field" data-field="password_hash"><span class="plain">password_hash</span><span class="type">varchar</span></div>
+            <div class="field" data-field="id_rol"><span class="fk">id_rol</span><span class="type">int4</span></div>
+            <div class="field" data-field="fecha_registro"><span class="plain">fecha_registro</span><span class="type">timestamp</span></div>
+            <div class="field" data-field="estado"><span class="plain">estado</span><span class="type">estado_user</span></div>
+        </div>
+
+        <!-- Roles -->
+        <div class="table-node bar-roles" data-table="roles" data-rels="usuarios">
+            <div class="table-header"><i data-lucide="shield"></i> roles</div>
+            <div class="field" data-field="id_rol"><span class="pk">id_rol</span><span class="type">int4</span></div>
+            <div class="field" data-field="nombre_rol"><span class="plain">nombre_rol</span><span class="type">varchar</span></div>
+            <div class="field" data-field="descripcion_rol"><span class="plain">descripcion</span><span class="type">text</span></div>
+        </div>
+
+        <!-- Documentos -->
+        <div class="table-node bar-documentos" data-table="documentos" data-rels="usuarios,historial_versiones,documento_controles">
+            <div class="table-header"><i data-lucide="file-text"></i> documentos</div>
+            <div class="field" data-field="id_documento"><span class="pk">id_documento</span><span class="type">int4</span></div>
+            <div class="field" data-field="titulo"><span class="plain">titulo</span><span class="type">varchar</span></div>
+            <div class="field" data-field="ruta_archivo"><span class="plain">ruta_archivo</span><span class="type">varchar</span></div>
+            <div class="field" data-field="tipo_documento"><span class="plain">tipo_documento</span><span class="type">varchar</span></div>
+            <div class="field" data-field="proceso_asociado"><span class="plain">proceso_asociado</span><span class="type">varchar</span></div>
+            <div class="field" data-field="version_actual"><span class="plain">version_actual</span><span class="type">int4</span></div>
+            <div class="field" data-field="id_usuario_subida"><span class="fk">id_usuario_subida</span><span class="type">int4</span></div>
+            <div class="field" data-field="fecha_subida"><span class="plain">fecha_subida</span><span class="type">timestamp</span></div>
+            <div class="field" data-field="contenido_texto_ia"><span class="plain">contenido_texto_ia</span><span class="type">text</span></div>
+        </div>
+
+        <!-- Historial -->
+        <div class="table-node bar-historial" data-table="historial_versiones" data-rels="documentos,usuarios">
+            <div class="table-header"><i data-lucide="clock"></i> historial_versiones</div>
+            <div class="field" data-field="id_historial"><span class="pk">id_historial</span><span class="type">int4</span></div>
+            <div class="field" data-field="id_documento_hist"><span class="fk">id_documento</span><span class="type">int4</span></div>
+            <div class="field" data-field="version_hist"><span class="plain">version</span><span class="type">int4</span></div>
+            <div class="field" data-field="fecha_cambio"><span class="plain">fecha_cambio</span><span class="type">timestamp</span></div>
+            <div class="field" data-field="id_usuario_modifico"><span class="fk">id_usuario_modifico</span><span class="type">int4</span></div>
+            <div class="field" data-field="ruta_archivo_version"><span class="plain">ruta_archivo_version</span><span class="type">varchar</span></div>
+        </div>
+
+        <!-- Controles ISO -->
+        <div class="table-node bar-controles" data-table="controles_iso" data-rels="documento_controles">
+            <div class="table-header"><i data-lucide="check-circle"></i> controles_iso</div>
+            <div class="field" data-field="id_control"><span class="pk">id_control</span><span class="type">int4</span></div>
+            <div class="field" data-field="codigo_norma"><span class="plain">codigo_norma</span><span class="type">varchar</span></div>
+            <div class="field" data-field="codigo_control"><span class="plain">codigo_control</span><span class="type">varchar</span></div>
+            <div class="field" data-field="descripcion_control"><span class="plain">descripcion</span><span class="type">text</span></div>
+        </div>
+
+        <!-- Documento Controles -->
+        <div class="table-node bar-relacion" data-table="documento_controles" data-rels="documentos,controles_iso">
+            <div class="table-header"><i data-lucide="link"></i> documento_controles</div>
+            <div class="field" data-field="id_relacion"><span class="pk">id_relacion</span><span class="type">int4</span></div>
+            <div class="field" data-field="id_documento_rel"><span class="fk">id_documento</span><span class="type">int4</span></div>
+            <div class="field" data-field="id_control_rel"><span class="fk">id_control</span><span class="type">int4</span></div>
+            <div class="field" data-field="origen_asignacion"><span class="plain">origen_asignacion</span><span class="type">varchar</span></div>
+            <div class="field" data-field="confirmado"><span class="plain">confirmado</span><span class="type">bool</span></div>
+            <div class="field" data-field="fecha_asignacion"><span class="plain">fecha_asignacion</span><span class="type">timestamp</span></div>
+        </div>
+    </div>
+
+    <script>
+        const dictionary = {
+            id_usuario: "Clave primaria. Identificador único de cada integrante del sistema.",
+            nombre_completo: "Nombre y apellido del usuario. Usado en reportes de auditoría.",
+            email: "Dirección de correo electrónico. Actúa como identificador único.",
+            password_hash: "Contraseña cifrada mediante algoritmos seguros ISO 27001.",
+            id_rol: "Referencia al rol asignado que determina permisos.",
+            fecha_registro: "Registro de la fecha y hora exacta de creación.",
+            estado: "Estado lógico del usuario (Activo, Suspendido, Pendiente).",
+            nombre_rol: "Etiqueta del perfil (ej: Administrador, Auditor).",
+            descripcion_rol: "Detalle de las funciones legales del rol.",
+            id_documento: "PK única del documento. Eje de trazabilidad ISO.",
+            titulo: "Nombre oficial del documento en el repositorio.",
+            ruta_archivo: "Ubicación lógica o física del archivo principal.",
+            tipo_documento: "Clasificación (Manual, Procedimiento, Política).",
+            proceso_asociado: "Nombre del proceso interno del SGC.",
+            version_actual: "Indicador de la revisión vigente aprobada.",
+            id_usuario_subida: "Usuario responsable de la carga inicial.",
+            fecha_subida: "Timestamp de alta en el sistema.",
+            contenido_texto_ia: "Texto indexado mediante IA para búsquedas.",
+            id_historial: "ID del cambio de versión.",
+            id_documento_hist: "Vínculo al documento maestro original.",
+            version_hist: "Número de la versión histórica guardada.",
+            fecha_cambio: "Fecha de generación de la revisión.",
+            id_usuario_modifico: "Responsable de la actualización.",
+            ruta_archivo_version: "Ubicación del archivo histórico.",
+            id_control: "ID del requisito normativo.",
+            codigo_norma: "Nombre de la norma (ej. ISO 9001:2015).",
+            codigo_control: "Numeral del capítulo o control específico.",
+            descripcion_control: "Requisito textual para cumplimiento.",
+            id_relacion: "PK de la matriz de cumplimiento.",
+            id_documento_rel: "Documento evidencia del cumplimiento.",
+            id_control_rel: "Control normativo cubierto.",
+            origen_asignacion: "Método de vinculación (IA o Manual).",
+            confirmado: "Validación humana de cumplimiento.",
+            fecha_asignacion: "Fecha de vinculación evidencia-control."
+        };
+
+        const tableData = {
+            usuarios: { title: "Usuarios", tag: "Seguridad", color: "#eab308", desc: "Gestión centralizada de personal autorizado.", rels: [{ target: "roles", label: "Posee" }, { target: "documentos", label: "Gestiona" }] },
+            roles: { title: "Roles", tag: "Administración", color: "#3b82f6", desc: "Perfiles de usuario y permisos.", rels: [{ target: "usuarios", label: "Asignado a" }] },
+            documentos: { title: "Documentos", tag: "Operación", color: "#10b981", desc: "Información documentada del SGC.", rels: [{ target: "usuarios", label: "Cargado por" }, { target: "historial_versiones", label: "Tiene" }] },
+            historial_versiones: { title: "Historial", tag: "Auditoría", color: "#f59e0b", desc: "Control de cambios y versiones.", rels: [{ target: "documentos", label: "Pertenece a" }] },
+            controles_iso: { title: "Controles ISO", tag: "Normativa", color: "#a855f7", desc: "Marco de referencia para cumplimiento.", rels: [{ target: "documento_controles", label: "Verificado en" }] },
+            documento_controles: { title: "Matriz Cumplimiento", tag: "Certificación", color: "#ef4444", desc: "Vínculo evidencia-norma.", rels: [{ target: "documentos", label: "Evidencia" }, { target: "controles_iso", label: "Control" }] }
+        };
+
+        const nodes = document.querySelectorAll('.table-node');
+        const emptyState = document.getElementById('empty-info');
+        const detailContent = document.getElementById('detail-content');
+        const detTitle = document.getElementById('det-title');
+        const detTag = document.getElementById('det-tag');
+        const detDesc = document.getElementById('det-desc');
+        const detRels = document.getElementById('det-rels');
+        const fieldDetail = document.getElementById('field-detail');
+        const fieldName = document.getElementById('field-name');
+        const fieldDesc = document.getElementById('field-desc');
+
+        function selectNode(tableName, fieldToHighlight = null) {
+            const node = document.querySelector(`.table-node[data-table="${tableName}"]`);
+            if (!node) return;
+
+            const relsStr = node.getAttribute('data-rels');
+            const relatedTables = relsStr.split(',');
+
+            nodes.forEach(n => {
+                n.classList.remove('active', 'dimmed');
+                if (n !== node && !relatedTables.includes(n.getAttribute('data-table'))) {
+                    n.classList.add('dimmed');
+                }
+            });
+            node.classList.add('active');
+            node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            const data = tableData[tableName];
+            detTitle.innerText = data.title;
+            detTag.innerText = data.tag;
+            detTag.style.backgroundColor = `${data.color}22`;
+            detTag.style.color = data.color;
+            detDesc.innerText = data.desc;
+            
+            detRels.innerHTML = '';
+            data.rels.forEach(rel => {
+                const btn = document.createElement('a');
+                btn.className = 'rel-link';
+                btn.innerHTML = `<strong>${rel.label}:</strong> ${rel.target}`;
+                btn.onclick = (e) => {
+                    e.preventDefault();
+                    selectNode(rel.target);
+                };
+                detRels.appendChild(btn);
+            });
+            
+            emptyState.style.display = 'none';
+            detailContent.style.display = 'block';
+
+            if (fieldToHighlight) {
+                fieldName.innerText = fieldToHighlight;
+                fieldDesc.innerText = dictionary[fieldToHighlight] || "Sin descripción disponible.";
+                fieldDetail.style.display = 'block';
+                fieldDetail.style.borderLeftColor = data.color;
+            } else {
+                fieldDetail.style.display = 'none';
+            }
+        }
+
+        nodes.forEach(node => {
+            node.querySelector('.table-header').addEventListener('click', (e) => {
+                e.stopPropagation();
+                selectNode(node.getAttribute('data-table'));
+            });
+
+            node.querySelectorAll('.field').forEach(field => {
+                field.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const tableName = node.getAttribute('data-table');
+                    const fieldKey = field.getAttribute('data-field');
+                    selectNode(tableName, fieldKey);
+                });
+            });
+        });
+
+        document.getElementById('canvas').addEventListener('click', () => {
+            nodes.forEach(n => {
+                n.classList.remove('active', 'dimmed');
+                n.style.opacity = '1';
+            });
+            emptyState.style.display = 'block';
+            detailContent.style.display = 'none';
+        });
+
+        lucide.createIcons();
+    </script>
+</body>
+</html>
